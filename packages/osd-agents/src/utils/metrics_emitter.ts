@@ -50,6 +50,10 @@ export class PrometheusMetricsEmitter {
       '# TYPE langgraph_agent_tool_execution_duration_seconds histogram',
       '# HELP langgraph_agent_iterations_per_request Number of iterations per request',
       '# TYPE langgraph_agent_iterations_per_request histogram',
+      '# HELP langgraph_system_prompt_tokens_total System prompt token counts (base and enhanced)',
+      '# TYPE langgraph_system_prompt_tokens_total gauge',
+      '# HELP langgraph_system_prompt_tool_overhead_tokens Token overhead from MCP tool descriptions',
+      '# TYPE langgraph_system_prompt_tool_overhead_tokens gauge',
       '',
     ].join('\n');
 

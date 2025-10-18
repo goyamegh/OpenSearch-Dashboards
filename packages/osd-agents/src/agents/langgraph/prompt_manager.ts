@@ -8,6 +8,9 @@ import { join } from 'path';
 import * as yaml from 'js-yaml';
 import { Logger } from '../../utils/logger';
 import { BaseMCPClient } from '../../mcp';
+import { BedrockTokenCounter } from '../../utils/token_counter';
+import { getPrometheusMetricsEmitter } from '../../utils/metrics_emitter';
+import { ModelConfigManager } from '../../config/model_config';
 
 export class PromptManager {
   private logger: Logger;
@@ -22,9 +25,9 @@ export class PromptManager {
   /**
    * Load and enhance the system prompt with dynamic MCP tool information
    */
-  loadSystemPrompt(customSystemPrompt?: string): void {
+  async loadSystemPrompt(customSystemPrompt?: string): Promise<void> {
     if (customSystemPrompt) {
-      this.baseSystemPrompt = this.enhanceSystemPrompt(customSystemPrompt);
+      this.baseSystemPrompt = await this.enhanceSystemPrompt(customSystemPrompt);
       this.logger.info('Using enhanced custom system prompt with dynamic content', {
         customPromptLength: customSystemPrompt.length,
         finalPromptLength: this.baseSystemPrompt.length,
@@ -32,7 +35,7 @@ export class PromptManager {
       });
     } else {
       // Always use dynamic system prompt that describes actual MCP tools
-      this.baseSystemPrompt = this.getDefaultSystemPrompt();
+      this.baseSystemPrompt = await this.getDefaultSystemPrompt();
       this.logger.info('Using dynamic system prompt with MCP tools', {
         promptLength: this.baseSystemPrompt.length,
         connectedServers: Object.keys(this.mcpClients).length,
@@ -126,7 +129,7 @@ ${this.formatClientTools(clientTools)}
     return prompt;
   }
 
-  private getDefaultSystemPrompt(): string {
+  private async getDefaultSystemPrompt(): Promise<string> {
     // Load observability agent template and inject dynamic MCP tool information
     const aiAgentPromptPath = join(__dirname, '../../prompts/observability_prompt.md');
 
@@ -137,7 +140,7 @@ ${this.formatClientTools(clientTools)}
 
     try {
       const aiAgentPrompt = readFileSync(aiAgentPromptPath, 'utf-8');
-      return this.enhanceSystemPrompt(aiAgentPrompt);
+      return await this.enhanceSystemPrompt(aiAgentPrompt);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to load observability_prompt.md', {
@@ -147,10 +150,24 @@ ${this.formatClientTools(clientTools)}
     }
   }
 
-  private enhanceSystemPrompt(prompt: string): string {
+  private async enhanceSystemPrompt(prompt: string): Promise<string> {
+    // Get model ID for token counting
+    const modelId = ModelConfigManager.getDefaultModel().modelId;
+    const metricsEmitter = getPrometheusMetricsEmitter();
+
+    // Count tokens BEFORE adding MCP tool descriptions
+    const baseTokens = await BedrockTokenCounter.countTokens(prompt, modelId);
+
     // Replace template placeholders with dynamic content
     const toolDescriptions = this.generateToolDescriptions();
     const toolValidationRules = this.getToolValidationRules();
+
+    // Calculate tool counts for metrics
+    const mcpServerCount = Object.keys(this.mcpClients).length;
+    let totalToolsCount = 0;
+    for (const client of Object.values(this.mcpClients)) {
+      totalToolsCount += client.getTools().length;
+    }
 
     // Only replace MCP and validation placeholders during initialization
     // Client-specific placeholders (CLIENT_STATE, CLIENT_CONTEXT, AG_UI_TOOLS)
@@ -164,6 +181,43 @@ ${this.formatClientTools(clientTools)}
         toolValidationRules
       );
     }
+
+    // Count tokens AFTER adding MCP tool descriptions
+    const enhancedTokens = await BedrockTokenCounter.countTokens(enhancedPrompt, modelId);
+
+    // Calculate token overhead from tools
+    const { diff: tokenDiff, percentIncrease } = BedrockTokenCounter.getTokenDiff(
+      baseTokens,
+      enhancedTokens
+    );
+
+    // Emit structured log with token breakdown
+    this.logger.info('System prompt token counts', {
+      base_tokens: baseTokens,
+      enhanced_tokens: enhancedTokens,
+      tool_overhead_tokens: tokenDiff,
+      tool_overhead_percent: percentIncrease,
+      mcp_servers_count: mcpServerCount,
+      total_tools_count: totalToolsCount,
+      model_id: modelId,
+    });
+
+    // Emit Prometheus metrics
+    metricsEmitter.emitGauge('langgraph_system_prompt_tokens_total', baseTokens, {
+      prompt_type: 'base',
+      model_id: modelId,
+    });
+
+    metricsEmitter.emitGauge('langgraph_system_prompt_tokens_total', enhancedTokens, {
+      prompt_type: 'enhanced',
+      model_id: modelId,
+    });
+
+    metricsEmitter.emitGauge('langgraph_system_prompt_tool_overhead_tokens', tokenDiff, {
+      model_id: modelId,
+      servers_count: mcpServerCount.toString(),
+      tools_count: totalToolsCount.toString(),
+    });
 
     return enhancedPrompt;
   }
