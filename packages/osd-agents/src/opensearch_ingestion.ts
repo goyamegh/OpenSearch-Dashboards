@@ -179,11 +179,14 @@ class OpenSearchIngestor {
       // Skip empty lines
       if (!line.trim()) return null;
 
+      // For multi-line entries, extract the first line for parsing timestamp/level
+      const firstLine = line.split('\n')[0];
+
       // Parse different log formats
-      const isoTimestampMatch = line.match(
+      const isoTimestampMatch = firstLine.match(
         /^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\]\s+(\w+):\s+(.*)/
       );
-      const readableTimestampMatch = line.match(
+      const readableTimestampMatch = firstLine.match(
         /^\[([^\]]+)\]\s+(?:\[([^\]]+)\])?\s*(\w+):\s+(.*)/
       );
 
@@ -191,20 +194,27 @@ class OpenSearchIngestor {
 
       if (isoTimestampMatch) {
         // ISO format timestamp - use as-is
+        const message = isoTimestampMatch[3];
+        const fullMessage = message + (line.includes('\n') ? line.substring(firstLine.length) : '');
+
         entry = {
           timestamp: isoTimestampMatch[1],
           level: isoTimestampMatch[2],
-          message: isoTimestampMatch[3],
+          message: fullMessage,
           source: filename.includes('audit') ? 'audit-logs' : 'logs',
           filename,
           raw: line,
           ingestion_timestamp: new Date().toISOString(),
         };
+
+        // Try to parse JSON object from message if present
+        this.tryParseJsonFields(entry, fullMessage);
       } else if (readableTimestampMatch) {
         const dateStr = readableTimestampMatch[1];
         const contextInfo = readableTimestampMatch[2];
         const level = readableTimestampMatch[3];
         const message = readableTimestampMatch[4];
+        const fullMessage = message + (line.includes('\n') ? line.substring(firstLine.length) : '');
 
         // Convert human-readable timestamp to ISO format
         let parsedTimestamp: string;
@@ -244,7 +254,7 @@ class OpenSearchIngestor {
         entry = {
           timestamp: parsedTimestamp,
           level,
-          message,
+          message: fullMessage,
           source: filename.includes('audit') ? 'audit-logs' : 'logs',
           filename,
           raw: line,
@@ -258,6 +268,9 @@ class OpenSearchIngestor {
           if (threadMatch) entry.thread_id = threadMatch[1];
           if (runMatch) entry.run_id = runMatch[1];
         }
+
+        // Try to parse JSON object from message if present
+        this.tryParseJsonFields(entry, fullMessage);
       } else if (line.trim()) {
         // Default fallback for unparsed lines - extract file timestamp if possible
         const fileTimestamp = this.extractTimestampFromFilename(filename);
@@ -277,6 +290,28 @@ class OpenSearchIngestor {
       console.error(`Error parsing log line: ${error}`);
       console.error(`Problem line: ${line}`);
       return null;
+    }
+  }
+
+  /**
+   * Try to parse JSON fields from a log message and add them to the entry
+   */
+  private tryParseJsonFields(entry: LogEntry, message: string): void {
+    try {
+      // Check if message contains a JSON object
+      const jsonMatch = message.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[0];
+        const parsed = JSON.parse(jsonStr);
+        // Add parsed fields to entry (but don't overwrite existing fields)
+        Object.keys(parsed).forEach((key) => {
+          if (!(key in entry)) {
+            entry[key] = parsed[key];
+          }
+        });
+      }
+    } catch (error) {
+      // If JSON parsing fails, that's okay - just leave the message as is
     }
   }
 
@@ -344,6 +379,70 @@ class OpenSearchIngestor {
     }
   }
 
+  /**
+   * Buffer lines that belong to the same log entry (handles multi-line JSON objects)
+   */
+  private async *bufferMultiLineEntries(
+    lineIterator: AsyncIterableIterator<string>
+  ): AsyncGenerator<string> {
+    let bufferedLine = '';
+    let bracketDepth = 0;
+    let isInMultiLine = false;
+
+    for await (const line of lineIterator) {
+      if (!line.trim()) continue;
+
+      // Check if this is the start of a new log entry (has timestamp)
+      const isLogStart = line.match(/^\[.*?\]\s+(?:\[.*?\])?\s*\w+:/);
+
+      if (isLogStart && !isInMultiLine) {
+        // If we have a buffered line, yield it first
+        if (bufferedLine) {
+          yield bufferedLine;
+          bufferedLine = '';
+        }
+
+        // Start new log entry
+        bufferedLine = line;
+
+        // Check if line ends with opening brace (start of multi-line JSON)
+        if (line.trim().endsWith('{')) {
+          isInMultiLine = true;
+          bracketDepth = 1;
+        } else {
+          // Single-line log entry
+          yield bufferedLine;
+          bufferedLine = '';
+        }
+      } else if (isInMultiLine) {
+        // Continue buffering multi-line entry
+        bufferedLine += '\n' + line;
+
+        // Track bracket depth
+        for (const char of line) {
+          if (char === '{') bracketDepth++;
+          if (char === '}') bracketDepth--;
+        }
+
+        // If brackets are balanced, we've reached the end of the JSON object
+        if (bracketDepth === 0) {
+          yield bufferedLine;
+          bufferedLine = '';
+          isInMultiLine = false;
+        }
+      } else {
+        // This is a continuation line without a timestamp (shouldn't happen in well-formed logs)
+        // Append to buffered line
+        bufferedLine += '\n' + line;
+      }
+    }
+
+    // Yield any remaining buffered line
+    if (bufferedLine) {
+      yield bufferedLine;
+    }
+  }
+
   private async processFile(
     filePath: string,
     type: 'logs' | 'audit-logs' | 'metrics'
@@ -364,7 +463,11 @@ class OpenSearchIngestor {
     let batch: any[] = [];
     const indexName = this.getDailyIndexName(type);
 
-    for await (const line of rl) {
+    // Use multi-line buffering for logs and audit-logs, but not for metrics
+    const lineIterator =
+      type === 'metrics' ? rl : this.bufferMultiLineEntries(rl[Symbol.asyncIterator]());
+
+    for await (const line of lineIterator) {
       if (!line.trim()) continue;
 
       let entry: any = null;
@@ -441,7 +544,11 @@ class OpenSearchIngestor {
     const indexName = this.getDailyIndexName(type);
     let linesProcessed = 0;
 
-    for await (const line of rl) {
+    // Use multi-line buffering for logs and audit-logs, but not for metrics
+    const lineIterator =
+      type === 'metrics' ? rl : this.bufferMultiLineEntries(rl[Symbol.asyncIterator]());
+
+    for await (const line of lineIterator) {
       if (!line.trim()) continue;
 
       let entry: any = null;
