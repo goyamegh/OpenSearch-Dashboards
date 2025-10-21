@@ -28,7 +28,7 @@ export class PromptManager {
   async loadSystemPrompt(customSystemPrompt?: string): Promise<void> {
     if (customSystemPrompt) {
       this.baseSystemPrompt = await this.enhanceSystemPrompt(customSystemPrompt);
-      this.logger.info('Using enhanced custom system prompt with dynamic content', {
+      this.logger.debug('Using enhanced custom system prompt with dynamic content', {
         customPromptLength: customSystemPrompt.length,
         finalPromptLength: this.baseSystemPrompt.length,
         customPromptPreview: customSystemPrompt.substring(0, 200) + '...',
@@ -36,7 +36,7 @@ export class PromptManager {
     } else {
       // Always use dynamic system prompt that describes actual MCP tools
       this.baseSystemPrompt = await this.getDefaultSystemPrompt();
-      this.logger.info('Using dynamic system prompt with MCP tools', {
+      this.logger.debug('Using dynamic system prompt with MCP tools', {
         promptLength: this.baseSystemPrompt.length,
         connectedServers: Object.keys(this.mcpClients).length,
         promptPreview: this.baseSystemPrompt.substring(0, 200) + '...',
