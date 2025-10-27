@@ -135,10 +135,47 @@ class OpenSearchIngestor {
     }
   }
 
-  private async createIndexIfNotExists(indexName: string): Promise<void> {
+  private async createIndexIfNotExists(
+    indexName: string,
+    type: 'logs' | 'audit-logs' | 'metrics'
+  ): Promise<void> {
     try {
       const exists = await this.client.indices.exists({ index: indexName });
       if (!exists.body) {
+        // Common fields for all index types
+        const commonProperties: any = {
+          timestamp: {
+            type: 'date',
+            format: 'strict_date_optional_time||epoch_millis',
+          },
+          source: { type: 'keyword' },
+          filename: { type: 'keyword' },
+          raw: { type: 'text' },
+          ingestion_timestamp: { type: 'date' },
+        };
+
+        // Type-specific fields
+        let properties: any;
+        if (type === 'metrics') {
+          // Metrics-specific fields
+          properties = {
+            ...commonProperties,
+            metric_name: { type: 'keyword' },
+            metric_type: { type: 'keyword' },
+            metric_value: { type: 'float' },
+          };
+        } else {
+          // Log-specific fields (for both 'logs' and 'audit-logs')
+          properties = {
+            ...commonProperties,
+            level: { type: 'keyword' },
+            message: { type: 'text' },
+            thread_id: { type: 'keyword' },
+            run_id: { type: 'keyword' },
+            // structured_data: { type: 'text', index: false },
+          };
+        }
+
         await this.client.indices.create({
           index: indexName,
           body: {
@@ -147,27 +184,11 @@ class OpenSearchIngestor {
               number_of_replicas: 1,
             },
             mappings: {
-              properties: {
-                timestamp: {
-                  type: 'date',
-                  format: 'strict_date_optional_time||epoch_millis',
-                },
-                level: { type: 'keyword' },
-                message: { type: 'text' },
-                source: { type: 'keyword' },
-                filename: { type: 'keyword' },
-                thread_id: { type: 'keyword' },
-                run_id: { type: 'keyword' },
-                metric_name: { type: 'keyword' },
-                metric_type: { type: 'keyword' },
-                metric_value: { type: 'float' },
-                raw: { type: 'text' },
-                ingestion_timestamp: { type: 'date' },
-              },
+              properties,
             },
           },
         });
-        console.log(`Created index: ${indexName}`);
+        console.log(`Created index: ${indexName} with ${type} schema`);
       }
     } catch (error) {
       console.error(`Error creating index ${indexName}:`, error);
@@ -303,10 +324,23 @@ class OpenSearchIngestor {
       if (jsonMatch) {
         const jsonStr = jsonMatch[0];
         const parsed = JSON.parse(jsonStr);
-        // Add parsed fields to entry (but don't overwrite existing fields)
-        Object.keys(parsed).forEach((key) => {
-          if (!(key in entry)) {
-            entry[key] = parsed[key];
+
+        // // Store the entire JSON as a single structured_data field
+        // // to avoid schema explosion (267+ fields)
+        // entry.structured_data = jsonStr;
+
+        // Optionally extract only specific high-value fields that have explicit mappings
+        // Note: run_id and thread_id are already extracted from log context in parseLogLine
+        const allowedFields = ['run_id', 'thread_id'];
+        allowedFields.forEach((key) => {
+          if (key in parsed && !(key in entry)) {
+            const value = parsed[key];
+            // Serialize complex types as JSON strings
+            if (typeof value === 'object' && value !== null) {
+              entry[key] = JSON.stringify(value);
+            } else {
+              entry[key] = value;
+            }
           }
         });
       }
@@ -415,20 +449,39 @@ class OpenSearchIngestor {
           bufferedLine = '';
         }
       } else if (isInMultiLine) {
-        // Continue buffering multi-line entry
-        bufferedLine += '\n' + line;
-
-        // Track bracket depth
-        for (const char of line) {
-          if (char === '{') bracketDepth++;
-          if (char === '}') bracketDepth--;
-        }
-
-        // If brackets are balanced, we've reached the end of the JSON object
-        if (bracketDepth === 0) {
+        // If we encounter a NEW log entry while buffering, close current entry and start new one
+        if (isLogStart) {
+          // Yield the incomplete multi-line entry
           yield bufferedLine;
           bufferedLine = '';
+          bracketDepth = 0;
           isInMultiLine = false;
+
+          // Start the new log entry
+          bufferedLine = line;
+          if (line.trim().endsWith('{')) {
+            isInMultiLine = true;
+            bracketDepth = 1;
+          } else {
+            yield bufferedLine;
+            bufferedLine = '';
+          }
+        } else {
+          // Continue buffering multi-line entry
+          bufferedLine += '\n' + line;
+
+          // Track bracket depth
+          for (const char of line) {
+            if (char === '{') bracketDepth++;
+            if (char === '}') bracketDepth--;
+          }
+
+          // If brackets are balanced, we've reached the end of the JSON object
+          if (bracketDepth === 0) {
+            yield bufferedLine;
+            bufferedLine = '';
+            isInMultiLine = false;
+          }
         }
       } else {
         // This is a continuation line without a timestamp (shouldn't happen in well-formed logs)
@@ -669,10 +722,10 @@ class OpenSearchIngestor {
   public async ingestAll(): Promise<void> {
     const baseDir = path.join(__dirname, '..');
 
-    // Create indices for each type
-    await this.createIndexIfNotExists(this.getDailyIndexName('logs'));
-    await this.createIndexIfNotExists(this.getDailyIndexName('audit-logs'));
-    await this.createIndexIfNotExists(this.getDailyIndexName('metrics'));
+    // Create indices for each type with appropriate schemas
+    await this.createIndexIfNotExists(this.getDailyIndexName('logs'), 'logs');
+    await this.createIndexIfNotExists(this.getDailyIndexName('audit-logs'), 'audit-logs');
+    await this.createIndexIfNotExists(this.getDailyIndexName('metrics'), 'metrics');
 
     // Process logs
     const logsDir = path.join(baseDir, 'logs');
