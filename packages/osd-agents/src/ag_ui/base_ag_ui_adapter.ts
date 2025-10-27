@@ -548,17 +548,14 @@ export class BaseAGUIAdapter {
 
           // Also add a text message for visibility in the chat
           const errorText = `\n\n❌ Tool ${actualToolName} error: ${error}`;
-          this.emitAndAuditEvent(
-            {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId,
-              delta: errorText,
-              timestamp: Date.now(),
-            } as TextMessageContentEvent,
-            observer,
-            threadId,
-            runId
-          );
+
+          // Resume text message if not active (may have been interrupted by tool call)
+          if (!this.textMessageManager.isMessageActive()) {
+            this.textMessageManager.resumeAfterTools(observer, threadId, runId);
+          }
+
+          // Emit error content using TextMessageManager for proper state management
+          this.textMessageManager.emitContent(errorText, observer, threadId, runId);
         },
         onTurnComplete: () => {
           // Turn completed - emit any pending state deltas before message ends
@@ -591,17 +588,15 @@ export class BaseAGUIAdapter {
         },
         onError: (error: string) => {
           // Emit error as text content
-          this.emitAndAuditEvent(
-            {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId,
-              delta: `\n\nError: ${error}`,
-              timestamp: Date.now(),
-            } as TextMessageContentEvent,
-            observer,
-            threadId,
-            runId
-          );
+          const errorText = `\n\nError: ${error}`;
+
+          // Resume text message if not active
+          if (!this.textMessageManager.isMessageActive()) {
+            this.textMessageManager.resumeAfterTools(observer, threadId, runId);
+          }
+
+          // Emit error content using TextMessageManager for proper state management
+          this.textMessageManager.emitContent(errorText, observer, threadId, runId);
         },
       };
 
@@ -631,17 +626,15 @@ export class BaseAGUIAdapter {
       });
 
       // Emit error as text content
-      this.emitAndAuditEvent(
-        {
-          type: EventType.TEXT_MESSAGE_CONTENT,
-          messageId,
-          delta: `Error: ${errorMessage}`,
-          timestamp: Date.now(),
-        } as TextMessageContentEvent,
-        observer,
-        threadId,
-        runId
-      );
+      const errorText = `Error: ${errorMessage}`;
+
+      // Resume text message if not active
+      if (!this.textMessageManager.isMessageActive()) {
+        this.textMessageManager.resumeAfterTools(observer, threadId, runId);
+      }
+
+      // Emit error content using TextMessageManager for proper state management
+      this.textMessageManager.emitContent(errorText, observer, threadId, runId);
     }
   }
 
