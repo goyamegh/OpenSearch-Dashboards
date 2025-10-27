@@ -11,6 +11,14 @@ import { ToolExecutor } from './tool_executor';
 import { ModelConfigManager } from '../../config/model_config';
 import { getPrometheusMetricsEmitter } from '../../utils/metrics_emitter';
 import { LLMRequestLogger } from '../../utils/llm_request_logger';
+import { BedrockTokenCounter } from '../../utils/token_counter';
+import {
+  LOG_PREVIEW_MAX_LENGTH,
+  MAX_TOOL_RESULT_LENGTH,
+  MAX_TOTAL_CONTEXT_CHARS,
+  ensureContextLimit,
+  getTotalContextSize,
+} from '../../utils/truncate_tool_result';
 
 export class ReactGraphNodes {
   private logger: Logger;
@@ -31,6 +39,13 @@ export class ReactGraphNodes {
     this.bedrockClient = bedrockClient;
     this.promptManager = promptManager;
     this.toolExecutor = toolExecutor;
+
+    // Log context configuration on startup
+    this.logger.info('⚙️ Context configuration loaded', {
+      LOG_PREVIEW_MAX_LENGTH,
+      MAX_TOOL_RESULT_LENGTH,
+      MAX_TOTAL_CONTEXT_CHARS,
+    });
   }
 
   /**
@@ -113,12 +128,29 @@ export class ReactGraphNodes {
     // Even at max iterations, we need toolConfig if message history contains tool blocks
     const toolConfig = tools.length > 0 ? this.toolExecutor.prepareToolConfig(tools) : undefined;
 
+    // Get base system prompt before client data injection
+    const baseSystemPrompt = this.promptManager.getBaseSystemPrompt();
+
     // Build enhanced system prompt with all client data
     const enhancedSystemPrompt = this.promptManager.injectClientDataIntoPrompt(
       clientState,
       clientContext,
       clientTools
     );
+
+    // Check and apply context limits
+    const contextCheck = ensureContextLimit(messages, MAX_TOTAL_CONTEXT_CHARS);
+
+    if (contextCheck.truncated) {
+      this.logger.warn('⚠️ Context limit exceeded - truncating messages', {
+        originalSize: contextCheck.originalSize,
+        newSize: contextCheck.newSize,
+        maxChars: MAX_TOTAL_CONTEXT_CHARS,
+        messagesRemoved: messages.length - contextCheck.messages.length,
+      });
+      // Note: We don't actually truncate here because we want to preserve conversation flow
+      // This is just a warning. Truncation would happen in production if needed.
+    }
 
     // If at max iterations, append strong instruction to avoid tools and provide final answer
     let finalSystemPrompt = enhancedSystemPrompt;
@@ -130,6 +162,16 @@ export class ReactGraphNodes {
 
     // Resolve model ID using priority: request -> default -> hardcoded
     const resolvedModelId = ModelConfigManager.resolveModelId(modelId);
+
+    // Log comprehensive context usage with all system prompt stages (async for token counting)
+    await this.logContextUsage(
+      baseSystemPrompt,
+      enhancedSystemPrompt,
+      finalSystemPrompt,
+      messages,
+      iterations,
+      resolvedModelId
+    );
 
     // Create the request for Bedrock
     const request: BedrockRequest = {
@@ -457,6 +499,143 @@ export class ReactGraphNodes {
     });
 
     await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  /**
+   * Analyze and log comprehensive context usage breakdown
+   */
+  private async logContextUsage(
+    baseSystemPrompt: string,
+    enhancedSystemPrompt: string,
+    finalSystemPrompt: string,
+    messages: any[],
+    iterations: number,
+    modelId: string
+  ): Promise<void> {
+    // Calculate system prompt growth at each stage
+    const baseSystemPromptChars = baseSystemPrompt.length;
+    const enhancedSystemPromptChars = enhancedSystemPrompt.length;
+    const finalSystemPromptChars = finalSystemPrompt.length;
+
+    const clientDataOverhead = enhancedSystemPromptChars - baseSystemPromptChars;
+    const maxIterWarningOverhead = finalSystemPromptChars - enhancedSystemPromptChars;
+
+    let userMessagesChars = 0;
+    let assistantMessagesChars = 0;
+    let toolResultsChars = 0;
+    const toolResultPreviews: string[] = [];
+    let userMessagesText = '';
+    let assistantMessagesText = '';
+    let toolResultsText = '';
+
+    messages.forEach((msg) => {
+      if (Array.isArray(msg.content)) {
+        msg.content.forEach((block: any) => {
+          const blockStr =
+            block.text || JSON.stringify(block.toolUse) || JSON.stringify(block.toolResult) || '';
+          const blockSize = blockStr.length;
+
+          if (msg.role === 'user') {
+            if (block.toolResult) {
+              toolResultsChars += blockSize;
+              toolResultsText += blockStr + '\n';
+              // Preview first 200 chars of tool result
+              const preview = blockStr.substring(0, 200);
+              toolResultPreviews.push(`toolResult (${block.toolResult.toolUseId}): ${preview}`);
+            } else {
+              userMessagesChars += blockSize;
+              userMessagesText += blockStr + '\n';
+            }
+          } else if (msg.role === 'assistant') {
+            assistantMessagesChars += blockSize;
+            assistantMessagesText += blockStr + '\n';
+          }
+        });
+      } else {
+        const contentSize = (msg.content || '').toString().length;
+        const contentStr = (msg.content || '').toString();
+        if (msg.role === 'user') {
+          userMessagesChars += contentSize;
+          userMessagesText += contentStr + '\n';
+        } else if (msg.role === 'assistant') {
+          assistantMessagesChars += contentSize;
+          assistantMessagesText += contentStr + '\n';
+        }
+      }
+    });
+
+    const totalChars =
+      finalSystemPromptChars + userMessagesChars + assistantMessagesChars + toolResultsChars;
+    const percentUsed = ((totalChars / MAX_TOTAL_CONTEXT_CHARS) * 100).toFixed(1);
+
+    // Count tokens for each component
+    const baseSystemPromptTokens = await BedrockTokenCounter.countTokens(baseSystemPrompt, modelId);
+    const enhancedSystemPromptTokens = await BedrockTokenCounter.countTokens(
+      enhancedSystemPrompt,
+      modelId
+    );
+    const finalSystemPromptTokens = await BedrockTokenCounter.countTokens(
+      finalSystemPrompt,
+      modelId
+    );
+    const userMessagesTokens = await BedrockTokenCounter.countTokens(userMessagesText, modelId);
+    const assistantMessagesTokens = await BedrockTokenCounter.countTokens(
+      assistantMessagesText,
+      modelId
+    );
+    const toolResultsTokens = await BedrockTokenCounter.countTokens(toolResultsText, modelId);
+
+    const totalTokens =
+      finalSystemPromptTokens + userMessagesTokens + assistantMessagesTokens + toolResultsTokens;
+
+    this.logger.info(`📊 Context Window Usage (iteration ${iterations}):`, {
+      systemPrompt: {
+        base: {
+          tokens: baseSystemPromptTokens,
+        },
+        afterClientData: {
+          tokens: enhancedSystemPromptTokens,
+        },
+        final: {
+          tokens: finalSystemPromptTokens,
+        },
+        clientDataOverhead: {
+          tokens: `+${enhancedSystemPromptTokens - baseSystemPromptTokens}`,
+        },
+        maxIterWarningOverhead: {
+          tokens:
+            maxIterWarningOverhead > 0
+              ? `+${finalSystemPromptTokens - enhancedSystemPromptTokens}`
+              : '0',
+        },
+        percentOfTotal: {
+          tokens: ((finalSystemPromptTokens / totalTokens) * 100).toFixed(1) + '%',
+        },
+      },
+      messages: {
+        user: {
+          tokens: userMessagesTokens,
+          percentChars: ((userMessagesChars / totalChars) * 100).toFixed(1) + '%',
+          percentTokens: ((userMessagesTokens / totalTokens) * 100).toFixed(1) + '%',
+        },
+        assistant: {
+          tokens: assistantMessagesTokens,
+          percentChars: ((assistantMessagesChars / totalChars) * 100).toFixed(1) + '%',
+          percentTokens: ((assistantMessagesTokens / totalTokens) * 100).toFixed(1) + '%',
+        },
+        toolResults: {
+          tokens: toolResultsTokens,
+          percentChars: ((toolResultsChars / totalChars) * 100).toFixed(1) + '%',
+          percentTokens: ((toolResultsTokens / totalTokens) * 100).toFixed(1) + '%',
+        },
+      },
+      total: {
+        tokens: totalTokens,
+        maxChars: MAX_TOTAL_CONTEXT_CHARS,
+        percentUsed: percentUsed + '%',
+      },
+      toolResultPreviews: toolResultPreviews.slice(0, 5), // Limit to 5 previews
+    });
   }
 
   /**
