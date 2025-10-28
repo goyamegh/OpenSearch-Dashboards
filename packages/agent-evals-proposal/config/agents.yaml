@@ -1,0 +1,99 @@
+# Agent Configuration for Evaluation Framework
+#
+# Each agent configuration specifies:
+# - name: Unique identifier for the agent
+# - endpoint: HTTP endpoint for AG UI protocol
+# - models: List of models to test against this agent
+# - timeout_ms: Request timeout (default: 30000)
+
+agents:
+  # Local development agent
+  - name: osd-agents-local
+    endpoint: http://localhost:3000
+    description: Local OSD agents server for development testing
+    timeout_ms: 60000
+    models:
+      - claude-sonnet-4
+      - claude-sonnet-4.5
+      - claude-sonnet-3.5
+      - claude-sonnet-3.7
+      - claude-haiku-4.5
+
+  # Production-like agent (placeholder)
+  - name: osd-agents-prod
+    endpoint: http://production-agent.example.com
+    description: Production agent endpoint (configure as needed)
+    timeout_ms: 30000
+    enabled: false
+    models:
+      - claude-sonnet-4.5
+
+# Model configurations
+# Maps model IDs to Bedrock model identifiers and display names
+models:
+  claude-sonnet-4:
+    model_id: anthropic.claude-sonnet-4-20250514-v1:0
+    display_name: Claude Sonnet 4
+    context_window: 200000
+    max_output_tokens: 4096
+
+  claude-sonnet-4.5:
+    model_id: anthropic.claude-sonnet-4-5-20250929-v1:0
+    display_name: Claude Sonnet 4.5
+    context_window: 200000
+    max_output_tokens: 4096
+
+  claude-haiku-4.5:
+    model_id: anthropic.claude-haiku-4-5-20250514-v1:0
+    display_name: Claude Haiku 4.5
+    context_window: 200000
+    max_output_tokens: 4096
+
+  claude-sonnet-3.5:
+    model_id: anthropic.claude-3-5-sonnet-20241022-v2:0
+    display_name: Claude Sonnet 3.5
+    context_window: 200000
+    max_output_tokens: 8192
+
+  claude-sonnet-3.7:
+    model_id: anthropic.claude-3-7-sonnet-20250219-v1:0
+    display_name: Claude Sonnet 3.7
+    context_window: 200000
+    max_output_tokens: 8192
+
+  # Convenience aliases (shorter names)
+  sonnet-4:
+    model_id: anthropic.claude-sonnet-4-20250514-v1:0
+    display_name: Claude Sonnet 4
+    context_window: 200000
+    max_output_tokens: 4096
+
+  sonnet-4.5:
+    model_id: anthropic.claude-sonnet-4-5-20250929-v1:0
+    display_name: Claude Sonnet 4.5
+    context_window: 200000
+    max_output_tokens: 4096
+
+  haiku-4.5:
+    model_id: anthropic.claude-haiku-4-5-20250514-v1:0
+    display_name: Claude Haiku 4.5
+    context_window: 200000
+    max_output_tokens: 4096
+
+  sonnet-3.5:
+    model_id: anthropic.claude-3-5-sonnet-20241022-v2:0
+    display_name: Claude Sonnet 3.5
+    context_window: 200000
+    max_output_tokens: 8192
+
+  sonnet-3.7:
+    model_id: anthropic.claude-3-7-sonnet-20250219-v1:0
+    display_name: Claude Sonnet 3.7
+    context_window: 200000
+    max_output_tokens: 8192
+
+# Default settings
+defaults:
+  timeout_ms: 30000
+  retry_attempts: 2
+  retry_delay_ms: 1000

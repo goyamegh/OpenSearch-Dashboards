@@ -1,0 +1,47 @@
+{
+  "name": "agent-evals",
+  "version": "1.0.0",
+  "description": "Agent Evaluation Framework for AG UI Protocol",
+  "main": "src/eval_framework/cli.ts",
+  "scripts": {
+    "eval": "ts-node src/eval_framework/cli.ts",
+    "eval:text-to-ppl": "ts-node src/eval_framework/cli.ts run --benchmark benchmarks/text_to_ppl/test_cases.json --models claude-sonnet-4,claude-sonnet-4.5,claude-haiku-4.5",
+    "eval:quick": "ts-node src/eval_framework/cli.ts run --benchmark benchmarks/text_to_ppl/test_cases.json --models claude-haiku-4.5 --limit 5",
+    "eval:range": "ts-node src/eval_framework/cli.ts run --benchmark benchmarks/text_to_ppl/test_cases.json --models claude-haiku-4.5 --tests",
+    "eval:failed": "ts-node src/eval_framework/cli.ts run --benchmark benchmarks/text_to_ppl/test_cases.json --models claude-haiku-4.5 --failed-only",
+    "list:models": "ts-node src/eval_framework/cli.ts list-models",
+    "list:agents": "ts-node src/eval_framework/cli.ts list-agents",
+    "list:benchmarks": "ts-node src/eval_framework/cli.ts list-benchmarks",
+    "build": "tsc",
+    "clean": "rm -rf dist reports/*.html"
+  },
+  "keywords": [
+    "agent",
+    "evaluation",
+    "ag-ui",
+    "benchmark",
+    "llm",
+    "ppl",
+    "opensearch"
+  ],
+  "author": "OpenSearch Contributors",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ag-ui/client": "^0.0.39",
+    "@ag-ui/core": "^0.0.36",
+    "js-yaml": "^4.1.0",
+    "node-fetch": "^2.6.7",
+    "ts-node": "^10.9.2",
+    "typescript": "4.5.5",
+    "uuid": "3.3.2"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.5",
+    "@types/node": "~20.10.5",
+    "@types/node-fetch": "^2.6.7",
+    "@types/uuid": "^3.4.4"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

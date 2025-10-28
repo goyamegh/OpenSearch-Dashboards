@@ -1,0 +1,53 @@
+# Model Pricing Configuration
+#
+# Pricing data for Claude models on AWS Bedrock
+# Prices are in USD per 1000 tokens
+# Updated: 2025-01-17
+#
+# Source: https://aws.amazon.com/bedrock/pricing/
+
+pricing:
+  # Claude Sonnet 4 (released Jan 2025)
+  claude-sonnet-4:
+    input_per_1k: 0.003    # $3 per 1M input tokens
+    output_per_1k: 0.015   # $15 per 1M output tokens
+    model_id: anthropic.claude-sonnet-4-20250514-v1:0
+
+  # Claude Sonnet 4.5 (released Sep 2025)
+  claude-sonnet-4.5:
+    input_per_1k: 0.003    # $3 per 1M input tokens
+    output_per_1k: 0.015   # $15 per 1M output tokens
+    model_id: anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # Claude Haiku 4.5 (most cost-effective)
+  claude-haiku-4.5:
+    input_per_1k: 0.001    # $1 per 1M input tokens (estimated)
+    output_per_1k: 0.005   # $5 per 1M output tokens (estimated)
+    model_id: anthropic.claude-haiku-4-5-20250514-v1:0
+
+  # Convenience aliases (shorter names)
+  sonnet-4:
+    input_per_1k: 0.003
+    output_per_1k: 0.015
+    model_id: anthropic.claude-sonnet-4-20250514-v1:0
+
+  sonnet-4.5:
+    input_per_1k: 0.003
+    output_per_1k: 0.015
+    model_id: anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  haiku-4.5:
+    input_per_1k: 0.001
+    output_per_1k: 0.005
+    model_id: anthropic.claude-haiku-4-5-20250514-v1:0
+
+# Default pricing (fallback if model not found)
+default:
+  input_per_1k: 0.003
+  output_per_1k: 0.015
+
+# Notes:
+# - Actual pricing may vary by region and usage tier
+# - Prices are for on-demand usage
+# - Haiku pricing is estimated pending official announcement
+# - Update this file periodically to reflect current pricing

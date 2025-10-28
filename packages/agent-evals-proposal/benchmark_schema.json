@@ -1,0 +1,341 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenSearch Agent Benchmark Test Case",
+  "description": "Schema for defining agent evaluation test cases",
+  "type": "object",
+  "required": ["id", "category", "difficulty", "input", "expected_output", "evaluation_criteria"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the test case",
+      "pattern": "^[a-z0-9-]+$",
+      "examples": ["text-to-ppl-001", "observability-error-001"]
+    },
+    "category": {
+      "type": "string",
+      "description": "Benchmark category this test belongs to",
+      "enum": [
+        "text-to-ppl",
+        "observability",
+        "rag",
+        "kubernetes",
+        "general-search",
+        "data-analysis",
+        "anomaly-detection"
+      ]
+    },
+    "subcategory": {
+      "type": "string",
+      "description": "Optional subcategory for finer-grained classification",
+      "examples": ["time-series", "aggregations", "joins", "error-analysis"]
+    },
+    "difficulty": {
+      "type": "string",
+      "description": "Difficulty level of the test case",
+      "enum": ["easy", "medium", "hard"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Additional tags for filtering and organization",
+      "items": {
+        "type": "string"
+      },
+      "examples": [["ppl", "time-based"], ["error", "correlation"]]
+    },
+    "input": {
+      "type": "object",
+      "description": "Input provided to the agent",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Natural language query or task description",
+          "minLength": 1
+        },
+        "context": {
+          "type": "object",
+          "description": "Additional context available to the agent",
+          "properties": {
+            "index": {
+              "type": "string",
+              "description": "OpenSearch index pattern"
+            },
+            "available_fields": {
+              "type": "array",
+              "description": "List of available fields in the index",
+              "items": {
+                "type": "string"
+              }
+            },
+            "field_types": {
+              "type": "object",
+              "description": "Mapping of field names to data types",
+              "additionalProperties": {
+                "type": "string",
+                "enum": ["text", "keyword", "long", "integer", "double", "date", "boolean", "ip", "geo_point"]
+              }
+            },
+            "sample_data": {
+              "type": "array",
+              "description": "Sample documents for context",
+              "items": {
+                "type": "object"
+              }
+            },
+            "time_range": {
+              "type": "object",
+              "description": "Time range for the query",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "end": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "additional_info": {
+              "type": "object",
+              "description": "Any other contextual information",
+              "additionalProperties": true
+            }
+          }
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Constraints or limitations for the agent",
+          "properties": {
+            "max_tokens": {
+              "type": "integer",
+              "description": "Maximum tokens allowed for LLM calls"
+            },
+            "max_tools": {
+              "type": "integer",
+              "description": "Maximum number of tool calls allowed"
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "description": "Maximum execution time in milliseconds"
+            },
+            "allowed_tools": {
+              "type": "array",
+              "description": "Whitelist of tools the agent can use",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected_output": {
+      "type": "object",
+      "description": "Expected output from the agent",
+      "properties": {
+        "ppl_query": {
+          "type": "string",
+          "description": "Expected PPL query (for text-to-PPL tasks)"
+        },
+        "sql_query": {
+          "type": "string",
+          "description": "Expected SQL query (for SQL tasks)"
+        },
+        "answer": {
+          "type": "string",
+          "description": "Expected natural language answer"
+        },
+        "tools_used": {
+          "type": "array",
+          "description": "Expected tools that should be used",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tool_sequence": {
+          "type": "array",
+          "description": "Expected sequence of tool calls (order matters)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool_name": {
+                "type": "string"
+              },
+              "parameters": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Expected reasoning or explanation"
+        },
+        "result_data": {
+          "type": "object",
+          "description": "Expected structured data output",
+          "additionalProperties": true
+        },
+        "visualizations": {
+          "type": "array",
+          "description": "Expected visualization types",
+          "items": {
+            "type": "string",
+            "enum": ["line_chart", "bar_chart", "pie_chart", "table", "heatmap", "scatter_plot"]
+          }
+        },
+        "alternative_outputs": {
+          "type": "array",
+          "description": "Alternative acceptable outputs (for ambiguous cases)",
+          "items": {
+            "type": "object",
+            "description": "Same structure as expected_output"
+          }
+        }
+      }
+    },
+    "evaluation_criteria": {
+      "type": "object",
+      "description": "Criteria for evaluating agent performance",
+      "required": ["primary_metric"],
+      "properties": {
+        "primary_metric": {
+          "type": "string",
+          "description": "Primary success metric",
+          "enum": ["exact_match", "syntax_valid", "semantic_similarity", "task_completion", "custom"]
+        },
+        "syntax_valid": {
+          "type": "boolean",
+          "description": "Whether syntax correctness is required"
+        },
+        "semantically_correct": {
+          "type": "boolean",
+          "description": "Whether semantic correctness is required"
+        },
+        "optimal_query": {
+          "type": "boolean",
+          "description": "Whether the query should be optimized (no unnecessary operations)"
+        },
+        "tool_efficiency": {
+          "type": "object",
+          "description": "Tool usage efficiency requirements",
+          "properties": {
+            "max_tools": {
+              "type": "integer",
+              "description": "Maximum number of tool calls allowed"
+            },
+            "required_tools": {
+              "type": "array",
+              "description": "Tools that must be used",
+              "items": {
+                "type": "string"
+              }
+            },
+            "forbidden_tools": {
+              "type": "array",
+              "description": "Tools that should not be used",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "latency_threshold_ms": {
+          "type": "integer",
+          "description": "Maximum acceptable latency in milliseconds"
+        },
+        "cost_threshold": {
+          "type": "number",
+          "description": "Maximum acceptable cost in USD"
+        },
+        "semantic_similarity_threshold": {
+          "type": "number",
+          "description": "Minimum cosine similarity for semantic correctness (0-1)",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "custom_validators": {
+          "type": "array",
+          "description": "Custom validation functions to run",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the validator function"
+              },
+              "params": {
+                "type": "object",
+                "description": "Parameters for the validator"
+              }
+            }
+          }
+        },
+        "scoring_weights": {
+          "type": "object",
+          "description": "Weights for different aspects of evaluation",
+          "properties": {
+            "correctness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "efficiency": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "latency": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "cost": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata about the test case",
+      "properties": {
+        "created_by": {
+          "type": "string",
+          "description": "Author of the test case"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the test case"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the test case (e.g., 'user-reported', 'synthetic', 'production')"
+        },
+        "related_issues": {
+          "type": "array",
+          "description": "Related GitHub issues or tickets",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes or context"
+        }
+      }
+    }
+  }
+}

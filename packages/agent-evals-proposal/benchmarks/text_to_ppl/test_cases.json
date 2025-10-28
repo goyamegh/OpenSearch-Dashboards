@@ -1,0 +1,1237 @@
+{
+  "benchmark_name": "Text-to-PPL Conversion",
+  "version": "1.0.0",
+  "description": "Evaluates agent's ability to convert natural language queries to valid PPL syntax",
+  "test_cases": [
+    {
+      "id": "text-to-ppl-001",
+      "category": "text-to-ppl",
+      "subcategory": "basic-filter",
+      "difficulty": "easy",
+      "tags": ["filter", "equality"],
+      "input": {
+        "query": "Generate a PPL query to show all logs where level is ERROR",
+        "context": {
+          "task": "generate_ppl_query",
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service", "host"],
+          "field_types": {
+            "timestamp": "date",
+            "level": "keyword",
+            "message": "text",
+            "service": "keyword",
+            "host": "keyword"
+          }
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR'",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Simple equality filter on level field"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-002",
+      "category": "text-to-ppl",
+      "subcategory": "time-filter",
+      "difficulty": "easy",
+      "tags": ["time", "filter"],
+      "input": {
+        "query": "Generate a PPL query to get all logs from the last hour",
+        "context": {
+          "task": "generate_ppl_query",
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where timestamp > now() - 1h",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Time-based filter using relative time"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-003",
+      "category": "text-to-ppl",
+      "subcategory": "combined-filter",
+      "difficulty": "medium",
+      "tags": ["filter", "time", "multi-condition"],
+      "input": {
+        "query": "Generate a PPL query to show all ERROR logs from the payment service in the last 24 hours",
+        "context": {
+          "task": "generate_ppl_query",
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service", "host"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' AND service='payment' AND timestamp > now() - 24h",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Multiple AND conditions combining level, service, and time filters"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-004",
+      "category": "text-to-ppl",
+      "subcategory": "aggregation",
+      "difficulty": "medium",
+      "tags": ["stats", "count"],
+      "input": {
+        "query": "Generate a PPL query to count the number of errors by service",
+        "context": {
+          "task": "generate_ppl_query",
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' | stats count() by service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Filter errors then group by service with count aggregation"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-005",
+      "category": "text-to-ppl",
+      "subcategory": "aggregation",
+      "difficulty": "medium",
+      "tags": ["stats", "avg"],
+      "input": {
+        "query": "Generate a PPL query to calculate the average response time for each endpoint",
+        "context": {
+          "task": "generate_ppl_query",
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | stats avg(response_time_ms) by endpoint",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Average aggregation grouped by endpoint"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-006",
+      "category": "text-to-ppl",
+      "subcategory": "sorting",
+      "difficulty": "easy",
+      "tags": ["sort", "order"],
+      "input": {
+        "query": "Show me the most recent 10 logs",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | sort - timestamp | head 10",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Sort by timestamp descending and limit to 10"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-007",
+      "category": "text-to-ppl",
+      "subcategory": "pattern-matching",
+      "difficulty": "medium",
+      "tags": ["like", "pattern"],
+      "input": {
+        "query": "Find all logs containing the word 'timeout'",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where message like '%timeout%'",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Pattern matching using LIKE operator"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-008",
+      "category": "text-to-ppl",
+      "subcategory": "field-selection",
+      "difficulty": "easy",
+      "tags": ["fields", "projection"],
+      "input": {
+        "query": "Show only the timestamp, service, and message fields",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service", "host", "trace_id"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | fields timestamp, service, message",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Field projection to show only specified columns"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-009",
+      "category": "text-to-ppl",
+      "subcategory": "aggregation",
+      "difficulty": "hard",
+      "tags": ["stats", "multiple-aggregations"],
+      "input": {
+        "query": "For each service, show the count of errors, average response time, and max response time",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "level", "response_time_ms"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' | stats count() as error_count, avg(response_time_ms) as avg_response, max(response_time_ms) as max_response by service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Multiple aggregations with aliases grouped by service"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-010",
+      "category": "text-to-ppl",
+      "subcategory": "in-operator",
+      "difficulty": "medium",
+      "tags": ["in", "filter"],
+      "input": {
+        "query": "Show logs from payment, checkout, or cart services",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "message", "level"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where service in ('payment', 'checkout', 'cart')",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "IN operator for multiple value matching"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-011",
+      "category": "text-to-ppl",
+      "subcategory": "dedup",
+      "difficulty": "medium",
+      "tags": ["dedup", "distinct"],
+      "input": {
+        "query": "Get unique services that have logged errors",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "level", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' | dedup service | fields service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Deduplication to get distinct services with errors"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-012",
+      "category": "text-to-ppl",
+      "subcategory": "time-grouping",
+      "difficulty": "hard",
+      "tags": ["span", "time-series"],
+      "input": {
+        "query": "Show error count per hour for the last 24 hours",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' AND timestamp > now() - 24h | stats count() by span(timestamp, 1h)",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Time-based grouping using span with hourly buckets"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-013",
+      "category": "text-to-ppl",
+      "subcategory": "comparison",
+      "difficulty": "medium",
+      "tags": ["comparison", "numeric"],
+      "input": {
+        "query": "Find all API requests that took longer than 1000ms",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where response_time_ms > 1000",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Numeric comparison filter"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-014",
+      "category": "text-to-ppl",
+      "subcategory": "range-filter",
+      "difficulty": "medium",
+      "tags": ["range", "between"],
+      "input": {
+        "query": "Show API requests with status codes between 400 and 499",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where status_code >= 400 AND status_code <= 499",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Range filter using comparison operators"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-015",
+      "category": "text-to-ppl",
+      "subcategory": "negation",
+      "difficulty": "easy",
+      "tags": ["not", "negation"],
+      "input": {
+        "query": "Get all logs that are not INFO level",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level != 'INFO'",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Negation filter using not equals operator"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-016",
+      "category": "text-to-ppl",
+      "subcategory": "aggregation",
+      "difficulty": "hard",
+      "tags": ["stats", "percentile"],
+      "input": {
+        "query": "What are the p50, p95, and p99 response times for each endpoint?",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | stats percentile(response_time_ms, 50) as p50, percentile(response_time_ms, 95) as p95, percentile(response_time_ms, 99) as p99 by endpoint",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Percentile calculations for latency analysis"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-017",
+      "category": "text-to-ppl",
+      "subcategory": "eval-field",
+      "difficulty": "hard",
+      "tags": ["eval", "calculated-field"],
+      "input": {
+        "query": "Calculate the error rate (errors divided by total requests) for each service",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | stats count() as total, count(status_code >= 400) as errors by service | eval error_rate = errors / total",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Calculate derived field using eval after aggregation"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-018",
+      "category": "text-to-ppl",
+      "subcategory": "rare",
+      "difficulty": "medium",
+      "tags": ["rare", "anomaly"],
+      "input": {
+        "query": "Find the least common error messages",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' | rare message",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Use rare command to find least frequent values"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-019",
+      "category": "text-to-ppl",
+      "subcategory": "top",
+      "difficulty": "easy",
+      "tags": ["top", "frequent"],
+      "input": {
+        "query": "What are the top 5 services with the most logs?",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | top 5 service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Top command to find most frequent values"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-020",
+      "category": "text-to-ppl",
+      "subcategory": "regex",
+      "difficulty": "hard",
+      "tags": ["regex", "pattern"],
+      "input": {
+        "query": "Find all logs with IP addresses in the message",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where match(message, '\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}')",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Regex pattern matching for IP addresses"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-021",
+      "category": "text-to-ppl",
+      "subcategory": "join",
+      "difficulty": "hard",
+      "tags": ["join", "correlation"],
+      "input": {
+        "query": "Join logs with metrics on the service field",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "level", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | join left=l right=r on l.service = r.service [ source=metrics-* ]",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Join two data sources on common field"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-022",
+      "category": "text-to-ppl",
+      "subcategory": "case-when",
+      "difficulty": "hard",
+      "tags": ["case", "conditional"],
+      "input": {
+        "query": "Categorize status codes as success (200-299), client error (400-499), or server error (500-599)",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval status_category = case(status_code >= 200 AND status_code < 300, 'success', status_code >= 400 AND status_code < 500, 'client_error', status_code >= 500 AND status_code < 600, 'server_error', 'other')",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Conditional categorization using case statement"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-023",
+      "category": "text-to-ppl",
+      "subcategory": "parse",
+      "difficulty": "hard",
+      "tags": ["parse", "extraction"],
+      "input": {
+        "query": "Extract the username from log messages formatted as 'User <username> logged in'",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | parse message 'User (?<username>.*) logged in' | fields timestamp, username",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Parse command to extract structured data from text"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-024",
+      "category": "text-to-ppl",
+      "subcategory": "multi-level-grouping",
+      "difficulty": "hard",
+      "tags": ["stats", "multi-group"],
+      "input": {
+        "query": "Count errors by service and host",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "service", "host", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' | stats count() by service, host",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Multi-dimensional grouping"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-025",
+      "category": "text-to-ppl",
+      "subcategory": "having-clause",
+      "difficulty": "hard",
+      "tags": ["stats", "having", "filter-aggregate"],
+      "input": {
+        "query": "Show services with more than 100 errors",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "service", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' | stats count() as error_count by service | where error_count > 100",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Filter on aggregated results"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-026",
+      "category": "text-to-ppl",
+      "subcategory": "null-handling",
+      "difficulty": "medium",
+      "tags": ["null", "isnull"],
+      "input": {
+        "query": "Find logs where the user field is missing",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "user", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where isnull(user)",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Check for null/missing values"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-027",
+      "category": "text-to-ppl",
+      "subcategory": "string-functions",
+      "difficulty": "medium",
+      "tags": ["string", "functions"],
+      "input": {
+        "query": "Convert all service names to uppercase",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval service_upper = upper(service) | fields timestamp, service_upper, message",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "String transformation using upper function"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-028",
+      "category": "text-to-ppl",
+      "subcategory": "date-functions",
+      "difficulty": "hard",
+      "tags": ["date", "functions"],
+      "input": {
+        "query": "Show logs grouped by hour of day",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval hour = hour(timestamp) | stats count() by hour",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Extract hour from timestamp and group"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-029",
+      "category": "text-to-ppl",
+      "subcategory": "math-operations",
+      "difficulty": "medium",
+      "tags": ["math", "eval"],
+      "input": {
+        "query": "Calculate response time in seconds instead of milliseconds",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval response_time_sec = response_time_ms / 1000 | fields timestamp, endpoint, response_time_sec",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Mathematical calculation for unit conversion"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-030",
+      "category": "text-to-ppl",
+      "subcategory": "complex-filter",
+      "difficulty": "hard",
+      "tags": ["filter", "or", "complex"],
+      "input": {
+        "query": "Show logs that are either ERROR level or contain 'exception' in the message",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' OR message like '%exception%'",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Complex filter with OR condition"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-031",
+      "category": "text-to-ppl",
+      "subcategory": "rename",
+      "difficulty": "easy",
+      "tags": ["rename", "alias"],
+      "input": {
+        "query": "Rename the 'msg' field to 'message'",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "msg", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | rename msg as message | fields timestamp, level, message, service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Field renaming for clarity"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-032",
+      "category": "text-to-ppl",
+      "subcategory": "tail",
+      "difficulty": "easy",
+      "tags": ["tail", "limit"],
+      "input": {
+        "query": "Show the last 20 logs",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | sort + timestamp | tail 20",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Get last N records by sorting ascending and using tail"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-033",
+      "category": "text-to-ppl",
+      "subcategory": "distinct-count",
+      "difficulty": "medium",
+      "tags": ["stats", "distinct"],
+      "input": {
+        "query": "How many unique users accessed each service?",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "user", "action"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | stats dc(user) as unique_users by service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Distinct count aggregation"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-034",
+      "category": "text-to-ppl",
+      "subcategory": "multiple-indices",
+      "difficulty": "medium",
+      "tags": ["source", "multiple"],
+      "input": {
+        "query": "Search across both app-logs and system-logs indices",
+        "context": {
+          "available_fields": ["timestamp", "level", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=app-ss4o_logs-*,system-ss4o_logs-* | fields timestamp, level, message",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Query multiple index patterns"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-035",
+      "category": "text-to-ppl",
+      "subcategory": "stddev",
+      "difficulty": "hard",
+      "tags": ["stats", "stddev"],
+      "input": {
+        "query": "Calculate the standard deviation of response times by endpoint",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | stats stddev(response_time_ms) as stddev_response by endpoint",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Standard deviation aggregation for variability analysis"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-036",
+      "category": "text-to-ppl",
+      "subcategory": "substring",
+      "difficulty": "medium",
+      "tags": ["string", "substring"],
+      "input": {
+        "query": "Extract the first 10 characters of the message field",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval message_short = substr(message, 1, 10) | fields timestamp, message_short, service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "String extraction using substr function"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-037",
+      "category": "text-to-ppl",
+      "subcategory": "absolute-time",
+      "difficulty": "medium",
+      "tags": ["time", "absolute"],
+      "input": {
+        "query": "Get logs between 2024-01-01 and 2024-01-31",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where timestamp >= '2024-01-01' AND timestamp < '2024-02-01'",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Absolute time range filter"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-038",
+      "category": "text-to-ppl",
+      "subcategory": "coalesce",
+      "difficulty": "hard",
+      "tags": ["coalesce", "null-handling"],
+      "input": {
+        "query": "Show user field, but use 'anonymous' if user is null",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "user", "action", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval user_display = coalesce(user, 'anonymous') | fields timestamp, user_display, action, service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Handle null values with default using coalesce"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-039",
+      "category": "text-to-ppl",
+      "subcategory": "concat",
+      "difficulty": "medium",
+      "tags": ["string", "concat"],
+      "input": {
+        "query": "Combine service and host fields into a single identifier",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "host", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval service_host = concat(service, '@', host) | fields timestamp, service_host, message",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "String concatenation to create composite field"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-040",
+      "category": "text-to-ppl",
+      "subcategory": "ip-functions",
+      "difficulty": "hard",
+      "tags": ["ip", "cidr"],
+      "input": {
+        "query": "Find all requests from IP addresses in the 10.0.0.0/8 range",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "client_ip", "endpoint", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where cidrmatch(client_ip, '10.0.0.0/8')",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "CIDR-based IP filtering"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-041",
+      "category": "text-to-ppl",
+      "subcategory": "window-functions",
+      "difficulty": "hard",
+      "tags": ["window", "moving-average"],
+      "input": {
+        "query": "Calculate a 5-minute moving average of error counts",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' | stats count() by span(timestamp, 1m) as ts | sort ts | eval moving_avg = avg(count) over (order by ts rows between 4 preceding and current row)",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Window function for moving average calculation"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-042",
+      "category": "text-to-ppl",
+      "subcategory": "array-functions",
+      "difficulty": "hard",
+      "tags": ["array", "json"],
+      "input": {
+        "query": "Extract the first element from the tags array field",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "message", "tags", "service"],
+          "field_types": {
+            "tags": "array"
+          }
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval first_tag = json_array_get(tags, 0) | fields timestamp, first_tag, message",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Array element extraction"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-043",
+      "category": "text-to-ppl",
+      "subcategory": "nested-aggregation",
+      "difficulty": "hard",
+      "tags": ["stats", "nested"],
+      "input": {
+        "query": "For each service, calculate the average of daily error counts over the last week",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where level='ERROR' AND timestamp > now() - 7d | stats count() as daily_errors by service, span(timestamp, 1d) as day | stats avg(daily_errors) by service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Nested aggregation: daily counts then average"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-044",
+      "category": "text-to-ppl",
+      "subcategory": "timestamp-math",
+      "difficulty": "medium",
+      "tags": ["time", "calculation"],
+      "input": {
+        "query": "Calculate the age of each log entry in hours",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "message", "service"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval age_hours = (now() - timestamp) / 3600000 | fields timestamp, age_hours, message, service",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Time difference calculation in hours"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-045",
+      "category": "text-to-ppl",
+      "subcategory": "boolean-logic",
+      "difficulty": "hard",
+      "tags": ["boolean", "complex-filter"],
+      "input": {
+        "query": "Find logs where (level is ERROR and service is payment) or (level is WARN and response_time > 5000)",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "level", "service", "response_time"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | where (level='ERROR' AND service='payment') OR (level='WARN' AND response_time > 5000)",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Complex boolean logic with parentheses"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    },
+    {
+      "id": "text-to-ppl-046",
+      "category": "text-to-ppl",
+      "subcategory": "lookup",
+      "difficulty": "hard",
+      "tags": ["lookup", "enrichment"],
+      "input": {
+        "query": "Enrich logs with service metadata from a lookup table",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "service", "message"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | lookup service_metadata service as service_name, owner, team",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Lookup join for data enrichment"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-047",
+      "category": "text-to-ppl",
+      "subcategory": "fillnull",
+      "difficulty": "medium",
+      "tags": ["fillnull", "null-handling"],
+      "input": {
+        "query": "Replace null response_time values with 0",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | fillnull value=0 response_time_ms | fields timestamp, endpoint, response_time_ms, status_code",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Fill null values with specified default"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-048",
+      "category": "text-to-ppl",
+      "subcategory": "correlation",
+      "difficulty": "hard",
+      "tags": ["stats", "correlation"],
+      "input": {
+        "query": "Calculate the correlation between response time and error rate",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "response_time_ms", "status_code"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval is_error = if(status_code >= 400, 1, 0) | stats corr(response_time_ms, is_error) as correlation",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Statistical correlation between two metrics"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-049",
+      "category": "text-to-ppl",
+      "subcategory": "bucket",
+      "difficulty": "medium",
+      "tags": ["bucket", "binning"],
+      "input": {
+        "query": "Group response times into buckets of 0-100ms, 100-500ms, 500-1000ms, and 1000+ms",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "endpoint", "response_time_ms"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | eval response_bucket = case(response_time_ms < 100, '0-100ms', response_time_ms < 500, '100-500ms', response_time_ms < 1000, '500-1000ms', '1000+ms') | stats count() by response_bucket",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Bucketing continuous values into ranges"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true
+      }
+    },
+    {
+      "id": "text-to-ppl-050",
+      "category": "text-to-ppl",
+      "subcategory": "complex-time-series",
+      "difficulty": "hard",
+      "tags": ["stats", "time-series", "multiple-metrics"],
+      "input": {
+        "query": "For each 15-minute interval, show the error count, average response time, and p95 response time",
+        "context": {
+          "index": "ss4o_logs-*",
+          "available_fields": ["timestamp", "status_code", "response_time_ms"]
+        }
+      },
+      "expected_output": {
+        "ppl_query": "source=ss4o_logs-* | stats count(status_code >= 400) as error_count, avg(response_time_ms) as avg_response, percentile(response_time_ms, 95) as p95_response by span(timestamp, 15m)",
+        "tools_used": ["ppl_generator"],
+        "reasoning": "Multiple aggregations with time-based grouping"
+      },
+      "evaluation_criteria": {
+        "primary_metric": "syntax_valid",
+        "syntax_valid": true,
+        "semantically_correct": true,
+        "optimal_query": true
+      }
+    }
+  ]
+}

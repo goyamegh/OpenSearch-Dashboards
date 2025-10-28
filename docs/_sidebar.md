@@ -120,6 +120,7 @@
     - [Url_generators_examples](../examples/url_generators_examples/README.md)
     - [Url_generators_explorer](../examples/url_generators_explorer/README.md)
   - packages
+    - [Agent evals proposal](../packages/agent-evals-proposal/README.md)
     - [Opensearch datemath](../packages/opensearch-datemath/readme.md)
     - [Opensearch eslint config opensearch dashboards](../packages/opensearch-eslint-config-opensearch-dashboards/README.md)
     - [Opensearch safer lodash set](../packages/opensearch-safer-lodash-set/README.md)
