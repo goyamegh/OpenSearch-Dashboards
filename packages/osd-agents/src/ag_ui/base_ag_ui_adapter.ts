@@ -418,6 +418,12 @@ export class BaseAGUIAdapter {
       const callbacks: StreamingCallbacks = {
         onTextStart: (text: string) => {
           accumulatedText = text; // Start accumulating text
+
+          // Ensure we have an active message (may need to resume after tools)
+          if (!this.textMessageManager.isMessageActive()) {
+            this.textMessageManager.resumeAfterTools(observer, threadId, runId);
+          }
+
           this.textMessageManager.emitContent(text, observer, threadId, runId);
         },
         onTextDelta: (delta: string) => {
@@ -443,7 +449,15 @@ export class BaseAGUIAdapter {
             }
           }
 
-          this.textMessageManager.emitContent(delta, observer, threadId, runId);
+          // Only emit if message is still active (may have been interrupted by tool call)
+          if (this.textMessageManager.isMessageActive()) {
+            this.textMessageManager.emitContent(delta, observer, threadId, runId);
+          } else {
+            // Text delta arrived after message interruption - skip silently
+            this.logger.debug('Skipping text delta after message interruption', {
+              deltaLength: delta.length,
+            });
+          }
         },
         onToolUseStart: (toolName: string, toolUseId: string, input: any) => {
           // Track tool execution count
