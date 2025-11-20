@@ -121,6 +121,13 @@ Data sources are provided in the client context and are Opensearch cluster using
 
 ## OpenSearch PPL Query Language
 
+### Index Discovery Best Practices
+
+**When searching for specific indices:**
+- Use the `index` parameter with wildcards: `index: "*test*"` to filter results
+- Prioritize exact matches over system indices (those starting with `.`)
+- Scan the complete filtered list before responding
+
 ### ⚠️ CRITICAL: Field Mapping Discovery Workflow
 
 **MANDATORY WORKFLOW - Before writing ANY PPL query for the first time on an index:**
